@@ -100,7 +100,6 @@ const UI = {
 
     const hasMembers = State.members.length > 0;
 
-    // 멤버가 아예 없는 경우
     if (!hasMembers) {
       el.innerHTML = `
         <div class="payer-label">오늘의 결제 담당자</div>
@@ -109,41 +108,53 @@ const UI = {
       return;
     }
 
-    // 담당자가 없거나 이름이 비어있는 경우 → 순번 1번으로 자동 표시
+    // 주말 체크
+    const d   = new Date(State.selectedDate);
+    const day = d.getDay();
+    if (day === 0 || day === 6) {
+      el.innerHTML = `
+        <div class="payer-label">오늘의 결제 담당자</div>
+        <div class="payer-name">주말 🎉</div>
+        <div class="payer-meta">오늘은 쉬는 날이에요</div>`;
+      return;
+    }
+
+    // 요일 기반 담당자
+    const dayNames = ['', '월', '화', '수', '목', '금'];
+    const orderIdx = day - 1; // 월=0 ... 금=4
+    const orderId  = State.weeklyOrder[orderIdx];
+    const orderMember = State.members.find(m => m.id === orderId);
+
     const displayPayer = (payer && payer.name)
       ? payer
-      : (() => {
-          const top = OrderCalc.getTodayPayer();
-          return top ? { id: top.id, name: top.name, isGuest: false } : null;
-        })();
+      : orderMember
+        ? { id: orderMember.id, name: orderMember.name, isGuest: false }
+        : null;
 
     if (!displayPayer) {
       el.innerHTML = `
         <div class="payer-label">오늘의 결제 담당자</div>
         <div class="payer-name">미지정</div>
         <div class="payer-meta">순번을 확인해 주세요</div>
-        <button class="btn-change" onclick="Actions.openPayerChange()">
-          담당자 선택
-        </button>`;
+        <button class="btn-change" onclick="Actions.openPayerChange()">담당자 선택</button>`;
       return;
     }
 
-    const member = State.members.find(m => m.id === displayPayer.id);
-    const payCount = member ? member.payCount : 0;
-    const isGuest = displayPayer.isGuest;
-
-    const isToday = State.selectedDate === DateUtil.today();
+    const isToday  = State.selectedDate === DateUtil.today();
     const dateLabel = isToday ? '오늘의 결제 담당자' : `${DateUtil.format(State.selectedDate)} 결제 담당자`;
+    const isGuest  = displayPayer.isGuest;
+    const member   = State.members.find(m => m.id === displayPayer.id);
+    const meta     = isGuest ? '게스트 결제' : `${dayNames[day]}요일 ${orderIdx + 1}번 담당`;
 
     el.innerHTML = `
       <div class="payer-label">${dateLabel}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
-        <div style="display:flex;align-items:center;gap:12px;min-width:0">
-          <div class="payer-name" style="margin:0">${displayPayer.name}</div>
-          <div class="payer-meta" style="margin:0;white-space:nowrap">${isGuest ? '게스트 결제' : `누적 결제 ${payCount}회`}</div>
+        <div>
+          <div class="payer-name">${displayPayer.name}</div>
+          <div class="payer-meta">${meta}</div>
         </div>
         <button class="btn-change" style="flex-shrink:0" onclick="Actions.openPayerChange()">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
@@ -151,9 +162,10 @@ const UI = {
         </button>
       </div>`;
 
-    // 바텀시트 내용 업데이트
     this.renderPayerChangeSheet();
   },
+
+  
 
   renderPayerChangeSheet() {
     const el = $('sheet-payer-list');
@@ -391,22 +403,26 @@ const UI = {
       return;
     }
 
+    const days      = ['월', '화', '수', '목', '금'];
+    const todayDay  = new Date().getDay(); // 0=일...6=토
     const rankClass = (i) => i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
 
     el.innerHTML = State.weeklyOrder.map((id, idx) => {
-      const m = State.members.find(m => m.id === id);
+      const m      = State.members.find(m => m.id === id);
       if (!m) return '';
+      const isToday = (idx + 1) === todayDay; // 월=1→idx0, 화=2→idx1...
       return `
         <div class="order-item-h" draggable="true"
              data-id="${id}" data-idx="${idx}"
              ondragstart="DragOrder.start(event)"
              ondragover="DragOrder.over(event)"
              ondrop="DragOrder.drop(event)"
-             ondragend="DragOrder.end(event)">
+             ondragend="DragOrder.end(event)"
+             style="${isToday ? 'border-color:var(--primary);background:var(--primary-light)' : ''}">
           <div class="order-rank ${rankClass(idx)}">${idx + 1}</div>
-          <div class="avatar avatar-sm" style="margin:6px 0">${getInitial(m.name)}</div>
-          <div class="order-name-h">${m.name}</div>
-          <div class="order-count" style="font-size:10px">${m.payCount}회</div>
+          <div style="font-size:10px;color:${isToday ? 'var(--primary)' : 'var(--gray-400)'};font-weight:600">${days[idx] || ''}</div>
+          <div class="av av-sm" style="margin:4px 0">${getInitial(m.name)}</div>
+          <div class="order-name-h" style="${isToday ? 'color:var(--primary)' : ''}">${m.name}</div>
         </div>`;
     }).join('');
   },

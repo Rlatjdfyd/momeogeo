@@ -84,62 +84,53 @@ const DateUtil = {
 };
 
 // =============================================
-// 순번 계산 로직
+// 순번 관리 (수동 고정 + 요일 기반)
 // =============================================
 const OrderCalc = {
 
-  // 결제 횟수 기준 자동 정렬
-  calcOrder(members) {
-    return [...members]
-      .sort((a, b) => {
-        if (a.payCount !== b.payCount) return a.payCount - b.payCount;
-        return a.name.localeCompare(b.name, 'ko');
-      })
-      .map(m => m.id);
-  },
-
-  // 이번 주 순번 불러오기 (수동 수정 우선, 없으면 자동 계산)
+  // 순번 불러오기 (수동 고정값 우선, 없으면 멤버 등록 순서)
   async loadThisWeek() {
-    const key = DateUtil.weekKey();
-    const saved = await OrderDB.get(key);
-
-    if (saved && saved.isManual && saved.order) {
-      // 저장된 멤버 id 중 현재 멤버에 있는 것만 필터
+    const saved = await OrderDB.get('fixed'); // 주차 키 대신 'fixed' 고정키 사용
+    if (saved && saved.order && saved.order.length) {
       const validIds = new Set(State.members.map(m => m.id));
       const filtered = saved.order.filter(id => validIds.has(id));
-      // 현재 멤버 중 순번에 없는 사람 추가
+      // 순번에 없는 새 멤버는 뒤에 추가
       State.members.forEach(m => {
         if (!filtered.includes(m.id)) filtered.push(m.id);
       });
-      State.weeklyOrder = filtered;
+      State.weeklyOrder  = filtered;
       State.isManualOrder = true;
     } else {
-      State.weeklyOrder = this.calcOrder(State.members);
+      // 최초엔 멤버 등록 순서로
+      State.weeklyOrder  = State.members.map(m => m.id);
       State.isManualOrder = false;
     }
   },
 
-  // 순번 재계산 (수동 수정 초기화)
-  async resetOrder() {
-    const key = DateUtil.weekKey();
-    State.weeklyOrder = this.calcOrder(State.members);
-    State.isManualOrder = false;
-    await OrderDB.save(key, State.weeklyOrder, false);
-  },
-
-  // 순번 수동 저장
+  // 순번 수동 저장 (고정)
   async saveManualOrder(order) {
-    const key = DateUtil.weekKey();
-    State.weeklyOrder = order;
+    State.weeklyOrder  = order;
     State.isManualOrder = true;
-    await OrderDB.save(key, order, true);
+    await OrderDB.save('fixed', order, true);
   },
 
-  // 오늘 담당자 (순번 1번)
-  getTodayPayer() {
+  // 요일 기반 오늘 담당자
+  // 월=1번(idx 0), 화=2번(idx 1), 수=3번(idx 2), 목=4번(idx 3), 금=5번(idx 4)
+  getTodayPayer(dateStr) {
     if (!State.weeklyOrder.length || !State.members.length) return null;
-    const id = State.weeklyOrder[0];
+    const d   = dateStr ? new Date(dateStr) : new Date();
+    const day = d.getDay(); // 0=일, 1=월 ... 5=금, 6=토
+    if (day === 0 || day === 6) return null; // 주말은 담당자 없음
+    const idx = day - 1; // 월(1)→0, 화(2)→1, 수(3)→2, 목(4)→3, 금(5)→4
+    const id  = State.weeklyOrder[idx];
     return State.members.find(m => m.id === id) || null;
+  },
+
+  // 순번 초기화 (멤버 등록 순서로)
+  async resetOrder() {
+    State.weeklyOrder  = State.members.map(m => m.id);
+    State.isManualOrder = false;
+    await OrderDB.save('fixed', State.weeklyOrder, false);
   }
 };
 
@@ -155,9 +146,10 @@ const TodayState = {
 
   // Firebase에서 받은 데이터 → State.today 동기화
   syncFromFirebase(data) {
+    // 요일 기반 기본 담당자
+    const defaultPayer = OrderCalc.getTodayPayer(State.selectedDate);
+
     if (!data) {
-      // 오늘 주문 없음 → 기본 상태
-      const defaultPayer = OrderCalc.getTodayPayer();
       State.today = {
         payer: defaultPayer
           ? { id: defaultPayer.id, name: defaultPayer.name, isGuest: false }
@@ -170,25 +162,25 @@ const TodayState = {
         totalAmount: ''
       };
     } else {
-      // Firebase 데이터로 상태 덮어쓰기
       const attendeesMap = data.attendees || {};
-      const guestsMap    = data.guests || {};
+      const guestsMap    = data.guests    || {};
+
+      // payer가 없거나 비어있으면 요일 기반 담당자 사용
+      const payer = (data.payerName)
+        ? { id: data.payerId || null, name: data.payerName, isGuest: data.payerIsGuest || false }
+        : defaultPayer
+          ? { id: defaultPayer.id, name: defaultPayer.name, isGuest: false }
+          : null;
 
       State.today = {
-        payer: {
-          id:      data.payerId || null,
-          name:    data.payerName || '',
-          isGuest: data.payerIsGuest || false
-        },
+        payer,
         restaurant:  data.restaurant || '',
-        // 고정 멤버 순서 유지하면서 Firebase 데이터 병합
         attendees: State.members.map(m => ({
           id:        m.id,
           name:      m.name,
           attending: attendeesMap[m.id]?.attending ?? true,
           menu:      attendeesMap[m.id]?.menu || ''
         })),
-        // 게스트는 id → 배열로 변환
         guests: Object.entries(guestsMap).map(([id, g]) => ({
           id, name: g.name, menu: g.menu || ''
         })),
