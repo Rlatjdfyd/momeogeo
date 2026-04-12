@@ -112,10 +112,39 @@ const UI = {
     const d   = new Date(State.selectedDate);
     const day = d.getDay();
     if (day === 0 || day === 6) {
-      el.innerHTML = `
-        <div class="payer-label">오늘의 결제 담당자</div>
-        <div class="payer-name">주말 🎉</div>
-        <div class="payer-meta">오늘은 쉬는 날이에요</div>`;
+      const dayName = day === 6 ? '토요일' : '일요일';
+      // 교체로 지정된 담당자가 있으면 표시
+      if (payer && payer.name) {
+        const isGuest = payer.isGuest;
+        el.innerHTML = `
+          <div class="payer-label">${dayName} 결제 담당자</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
+            <div>
+              <div class="payer-name">${payer.name}</div>
+              <div class="payer-meta">${isGuest ? '게스트 결제' : '수동 지정'}</div>
+            </div>
+            <button class="btn-change" style="flex-shrink:0" onclick="Actions.openPayerChange()">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              교체
+            </button>
+          </div>`;
+      } else {
+        el.innerHTML = `
+          <div class="payer-label">${dayName} 결제 담당자</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px">
+            <div>
+              <div class="payer-name">미지정</div>
+              <div class="payer-meta">담당자를 직접 선택해 주세요</div>
+            </div>
+            <button class="btn-change" style="flex-shrink:0" onclick="Actions.openPayerChange()">
+              담당자 선택
+            </button>
+          </div>`;
+      }
+      this.renderPayerChangeSheet();
       return;
     }
 
@@ -164,8 +193,6 @@ const UI = {
 
     this.renderPayerChangeSheet();
   },
-
-  
 
   renderPayerChangeSheet() {
     const el = $('sheet-payer-list');
