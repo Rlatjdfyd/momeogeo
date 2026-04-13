@@ -165,8 +165,9 @@ const TodayState = {
       const attendeesMap = data.attendees || {};
       const guestsMap    = data.guests    || {};
 
-      // payer가 없거나 비어있으면 요일 기반 담당자 사용
-      const payer = (data.payerName)
+      // Firebase 데이터의 날짜가 선택 날짜와 다르면 payer 무시 → 요일 기반 사용
+      const sameDate = data.date === State.selectedDate;
+      const payer = (sameDate && data.payerName)
         ? { id: data.payerId || null, name: data.payerName, isGuest: data.payerIsGuest || false }
         : defaultPayer
           ? { id: defaultPayer.id, name: defaultPayer.name, isGuest: false }
@@ -174,17 +175,17 @@ const TodayState = {
 
       State.today = {
         payer,
-        restaurant:  data.restaurant || '',
+        restaurant:  sameDate ? (data.restaurant || '') : '',
         attendees: State.members.map(m => ({
           id:        m.id,
           name:      m.name,
-          attending: attendeesMap[m.id]?.attending ?? true,
-          menu:      attendeesMap[m.id]?.menu || ''
+          attending: sameDate ? (attendeesMap[m.id]?.attending ?? true) : true,
+          menu:      sameDate ? (attendeesMap[m.id]?.menu || '') : ''
         })),
-        guests: Object.entries(guestsMap).map(([id, g]) => ({
-          id, name: g.name, menu: g.menu || ''
-        })),
-        totalAmount: data.totalAmount || ''
+        guests: sameDate
+          ? Object.entries(guestsMap).map(([id, g]) => ({ id, name: g.name, menu: g.menu || '' }))
+          : [],
+        totalAmount: sameDate ? (data.totalAmount || '') : ''
       };
     }
   },

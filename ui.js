@@ -840,6 +840,8 @@ const Actions = {
   onDateChange(val) {
     if (!val) return;
     State.selectedDate = val;
+    // 날짜 바뀌면 담당자 초기화 → 요일 기반으로 재계산
+    State.today.payer = null;
     UI.updateHeaderDate();
     UI.renderPayerCard();
   },
