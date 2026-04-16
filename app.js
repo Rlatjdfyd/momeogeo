@@ -295,9 +295,6 @@ const TodayState = {
     // 오늘 주문 상태 초기화
     await TodayOrderDB.clear();
 
-    // 순번 재계산
-    await OrderCalc.resetOrder();
-
     return true;
   }
 };
