@@ -197,7 +197,8 @@ const TodayState = {
       name,
       payer?.id,
       payer?.name || '',
-      payer?.isGuest || false
+      payer?.isGuest || false,
+      State.selectedDate  // 선택 날짜 전달
     );
     // 식당 선택 시 멤버 전원 기본 참석 상태로 초기화
     for (const m of State.members) {
@@ -374,8 +375,8 @@ const Stats = {
 const App = {
 
   async init() {
-    // 오늘 날짜 확인 (날짜 바뀌면 todayOrder 자동 정리)
-    await TodayOrderDB.checkAndClearIfOldDate();
+    // 선택 날짜 기준으로 임시 저장 정리
+    await TodayOrderDB.checkAndClearIfOldDate(State.selectedDate);
 
     // 멤버 실시간 구독
     MemberDB.onValue(members => {

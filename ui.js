@@ -837,10 +837,11 @@ const Actions = {
   },
 
   // 날짜 변경
-  onDateChange(val) {
+  async onDateChange(val) {
     if (!val) return;
     State.selectedDate = val;
-    // 날짜 바뀌면 담당자 초기화 → 요일 기반으로 재계산
+    // 선택 날짜 바뀌면 임시 저장 정리
+    await TodayOrderDB.checkAndClearIfOldDate(val);
     State.today.payer = null;
     UI.updateHeaderDate();
     UI.renderPayerCard();
@@ -1231,6 +1232,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 날짜 인풋 초기값 설정
   const dateInput = $('lunch-date-input');
   if (dateInput) dateInput.value = DateUtil.today();
+
+  // 헤더 날짜 초기화
+  UI.updateHeaderDate();
 
   // 탭 이벤트
   document.querySelectorAll('.tab-item').forEach(el => {

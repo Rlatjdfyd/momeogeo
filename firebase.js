@@ -207,10 +207,10 @@ const TodayOrderDB = {
   },
 
   // 식당 선택 (담당자가 설정)
-  async setRestaurant(restaurant, payerId, payerName, payerIsGuest) {
+  async setRestaurant(restaurant, payerId, payerName, payerIsGuest, selectedDate) {
     const isGuest = payerIsGuest || false;
     await REFS.todayOrder().update({
-      date:         new Date().toISOString().slice(0, 10),
+      date:         selectedDate || new Date().toISOString().slice(0, 10),
       restaurant:   restaurant || '',
       payerId:      isGuest ? null : (payerId || null),
       payerName:    payerName || '',
@@ -275,12 +275,11 @@ const TodayOrderDB = {
     await REFS.todayOrder().remove();
   },
 
-  // 오늘 날짜 주문인지 확인 (날짜가 바뀌면 자동 초기화)
-  async checkAndClearIfOldDate() {
+  // 선택 날짜가 바뀌면 임시 저장 초기화
+  async checkAndClearIfOldDate(selectedDate) {
     const snap = await REFS.todayOrder().child('date').once('value');
     const savedDate = snap.val();
-    const today = new Date().toISOString().slice(0, 10);
-    if (savedDate && savedDate !== today) {
+    if (savedDate && savedDate !== selectedDate) {
       await this.clear();
     }
   }
